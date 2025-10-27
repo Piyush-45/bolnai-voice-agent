@@ -1,0 +1,232 @@
+# from datetime import datetime
+# from sqlalchemy.orm import Session
+# from . import models
+
+# # ------------------- PATIENTS -------------------
+
+# def get_or_create_patient(db: Session, name: str, phone: str, language: str = "english", age: int | None = None):
+#     existing = db.query(models.Patient).filter(models.Patient.phone == phone).first()
+#     if existing:
+#         return existing
+#     patient = models.Patient(name=name, phone=phone, language=language, age=age)
+#     db.add(patient)
+#     db.commit()
+#     db.refresh(patient)
+#     return patient
+
+
+# def get_all_patients(db: Session):
+#     return db.query(models.Patient).order_by(models.Patient.id.desc()).all()
+
+
+# def get_patient_by_id(db: Session, patient_id: int):
+#     return db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+
+
+# def delete_patient(db: Session, patient_id: int):
+#     patient = get_patient_by_id(db, patient_id)
+#     if patient:
+#         db.delete(patient)
+#         db.commit()
+#         return True
+#     return False
+
+
+# # ------------------- CALLS -------------------
+
+# def create_call(db: Session, patient_id: int, status: str = "initiated"):
+#     call = models.Call(patient_id=patient_id, status=status, started_at=datetime.utcnow())
+#     db.add(call)
+#     db.commit()
+#     db.refresh(call)
+#     return call
+
+
+# def get_calls(db: Session, patient_id: int | None = None):
+#     q = db.query(models.Call)
+#     if patient_id:
+#         q = q.filter(models.Call.patient_id == patient_id)
+#     return q.order_by(models.Call.created_at.desc()).all()
+
+
+# # ------------------- EXTRACTIONS -------------------
+
+# def save_extraction(db: Session, call_id: int, extraction: dict):
+#     """
+#     Store extracted data from Bolna webhook.
+#     """
+#     if not extraction:
+#         return None
+
+#     record = models.CallExtraction(
+#         call_id=call_id,
+#         has_pain=extraction.get("has_pain"),
+#         taking_medicines=extraction.get("taking_medicines"),
+#         overall_mood=extraction.get("overall_mood"),
+#         needs_callback=extraction.get("needs_callback"),
+#         answer_q1=extraction.get("answer_q1"),
+#         answer_q2=extraction.get("answer_q2"),
+#         answer_q3=extraction.get("answer_q3"),
+#         raw_data=extraction,
+#         created_at=datetime.utcnow()
+#     )
+
+#     db.add(record)
+#     db.commit()
+#     db.refresh(record)
+#     return record
+
+
+# # ------------------- TRANSCRIPTS -------------------
+
+# # def save_transcript(db: Session, call_id: int, text: str):
+# #     """
+# #     Save transcript text for a specific call.
+# #     """
+# #     transcript = models.Transcript(
+# #         call_id=call_id,
+# #         text=text,
+# #         created_at=datetime.utcnow()
+# #     )
+# #     db.add(transcript)
+# #     db.commit()
+# #     db.refresh(transcript)
+# #     return transcript
+
+# from .models import Transcript, CallExtraction, Call
+
+# def save_transcript(db, call_id: int, text: str, role: str = "assistant"):
+#     t = Transcript(call_id=call_id, text=text, role=role, created_at=datetime.utcnow())
+#     db.add(t)
+#     db.commit()
+#     db.refresh(t)
+#     return t
+
+
+
+
+
+
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
+from datetime import datetime
+from . import models, schemas
+
+
+# ------------------------------------------------------------
+# 👤 USER & AUTH HELPERS
+# ------------------------------------------------------------
+def get_user_by_email(db: Session, email: str):
+    return db.query(models.User).filter(models.User.email == email).first()
+
+
+# ------------------------------------------------------------
+# 🏥 HOSPITAL HELPERS
+# ------------------------------------------------------------
+def get_or_create_hospital(db: Session, name: str):
+    hospital = db.query(models.Hospital).filter(models.Hospital.name == name).first()
+    if not hospital:
+        hospital = models.Hospital(name=name)
+        db.add(hospital)
+        db.commit()
+        db.refresh(hospital)
+    return hospital
+
+
+# ------------------------------------------------------------
+# 🧍 PATIENT HELPERS
+# ------------------------------------------------------------
+def get_or_create_patient(
+    db: Session,
+    name: str,
+    phone: str,
+    language: str,
+    age: int,
+    hospital_id: int,
+):
+    """
+    Returns existing patient if found by phone + hospital_id,
+    otherwise creates a new one.
+    """
+    patient = (
+        db.query(models.Patient)
+        .filter(models.Patient.phone == phone, models.Patient.hospital_id == hospital_id)
+        .first()
+    )
+    if patient:
+        return patient
+
+    patient = models.Patient(
+        name=name,
+        phone=phone,
+        language=language,
+        age=age,
+        hospital_id=hospital_id,
+    )
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    return patient
+
+
+def delete_patient(db: Session, patient_id: int):
+    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if not patient:
+        return False
+    db.delete(patient)
+    db.commit()
+    return True
+
+
+# ------------------------------------------------------------
+# 📞 CALL HELPERS
+# ------------------------------------------------------------
+def create_call(db: Session, patient_id: int, status: str):
+    call = models.Call(patient_id=patient_id, status=status)
+    db.add(call)
+    db.commit()
+    db.refresh(call)
+    return call
+
+
+def update_call_status(db: Session, call_id: int, status: str):
+    call = db.query(models.Call).filter(models.Call.id == call_id).first()
+    if call:
+        call.status = status
+        db.commit()
+        db.refresh(call)
+    return call
+
+
+# ------------------------------------------------------------
+# 🗣️ TRANSCRIPTS & EXTRACTIONS
+# ------------------------------------------------------------
+def save_transcript(db: Session, call_id: int, text: str, role: str):
+    transcript = models.Transcript(call_id=call_id, text=text, role=role)
+    db.add(transcript)
+    db.commit()
+    db.refresh(transcript)
+    return transcript
+
+
+def save_extraction(db: Session, call_id: int, data: dict):
+    extraction = models.CallExtraction(
+        call_id=call_id,
+        has_pain=data.get("has_pain"),
+        taking_medicines=data.get("taking_medicines"),
+        overall_mood=data.get("overall_mood"),
+        needs_callback=data.get("needs_callback"),
+    )
+    db.add(extraction)
+    db.commit()
+    db.refresh(extraction)
+    return extraction
+
+
+def get_latest_extraction(db: Session, call_id: int):
+    return (
+        db.query(models.CallExtraction)
+        .filter(models.CallExtraction.call_id == call_id)
+        .order_by(desc(models.CallExtraction.created_at))
+        .first()
+    )

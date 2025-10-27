@@ -1,0 +1,64 @@
+from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional
+
+class PatientBase(BaseModel):
+    name: str
+    phone: str
+    language: Optional[str] = "english"
+    age: Optional[int] = None
+
+class PatientCreate(PatientBase):
+    pass
+
+class Patient(PatientBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class CallBase(BaseModel):
+    patient_id: int
+    status: str = "initiated"
+
+class Call(CallBase):
+    id: int
+    created_at: datetime
+    started_at: Optional[datetime]
+    ended_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
+
+# ------------------- AUTH SCHEMAS -------------------
+
+from pydantic import BaseModel, EmailStr
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str
+    hospital_name: str
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class AuthUser(BaseModel):
+    id: int
+    email: EmailStr
+    hospital_id: int
+    hospital_name: Optional[str] = None  # ✅ add this field!
+
+
+    class Config:
+        from_attributes = True  # replaces orm_mode=True in Pydantic v2
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: AuthUser
+
+
+

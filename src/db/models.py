@@ -1,0 +1,124 @@
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey,
+    Float,
+    JSON
+)
+from sqlalchemy.orm import relationship, declarative_base
+from datetime import datetime
+
+from .database import Base
+
+
+# ------------------- PATIENTS -------------------
+
+class Patient(Base):
+    __tablename__ = "patients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    phone = Column(String, nullable=False)
+    age = Column(Integer, nullable=True)
+    language = Column(String, default="english")
+    patient_type = Column(String, default="regular")
+    custom_questions = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    hospital_id = Column(Integer, ForeignKey("hospitals.id"), nullable=True)
+
+    # Relationships
+    calls = relationship("Call", back_populates="patient")
+
+
+# ------------------- CALLS -------------------
+
+class Call(Base):
+    __tablename__ = "calls"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"))
+    status = Column(String, default="initiated")
+    duration = Column(Float, default=0)
+    started_at = Column(DateTime, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    execution_id = Column(String, nullable=True, unique=True)
+    # Relationships
+    patient = relationship("Patient", back_populates="calls")
+    transcripts = relationship("Transcript", back_populates="call")
+    extractions = relationship("CallExtraction", back_populates="call")
+
+
+# ------------------- TRANSCRIPTS -------------------
+
+class Transcript(Base):
+    __tablename__ = "transcripts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    call_id = Column(Integer, ForeignKey("calls.id"))
+
+    role = Column(String, nullable=False, default="assistant")
+    text = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship
+    call = relationship("Call", back_populates="transcripts")
+
+
+# ------------------- CALL EXTRACTIONS -------------------
+
+class CallExtraction(Base):
+    __tablename__ = "call_extractions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    call_id = Column(Integer, ForeignKey("calls.id"))
+
+    # Extracted AI summary fields
+    has_pain = Column(String, nullable=True)
+    taking_medicines = Column(String, nullable=True)
+    overall_mood = Column(String, nullable=True)
+    needs_callback = Column(String, nullable=True)
+
+    # Custom question answers
+    answer_q1 = Column(String, nullable=True)
+    answer_q2 = Column(String, nullable=True)
+    answer_q3 = Column(String, nullable=True)
+
+    # Raw JSON payload from Bolna
+    raw_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship
+    call = relationship("Call", back_populates="extractions")
+
+
+
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy.orm import relationship
+from datetime import datetime
+from .database import Base
+
+class Hospital(Base):
+    __tablename__ = "hospitals"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    users = relationship("User", back_populates="hospital")
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    hospital = relationship("Hospital", back_populates="users")
+    __table_args__ = (UniqueConstraint('email', name='uq_users_email'),)
+
+
+
+
+
