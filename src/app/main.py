@@ -973,3 +973,30 @@ def delete_patient(patient_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail="Patient not found")
     return {"status": "deleted"}
+
+
+# ------------------------------------------------------------
+# 🧠 Update / Save Patient Custom Questions
+# ------------------------------------------------------------
+from fastapi import Body
+
+@app.post("/patients/{patient_id}/questions")
+def update_patient_questions(
+    patient_id: int,
+    body: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Update the custom_questions field for a specific patient.
+    The body should be a JSON object like:
+    { "questions": ["How are you feeling?", "Any pain today?"] }
+    """
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient.custom_questions = body.get("questions", [])
+    db.commit()
+    db.refresh(patient)
+
+    return {"status": "success", "patient_id": patient.id, "custom_questions": patient.custom_questions}
